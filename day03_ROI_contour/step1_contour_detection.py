@@ -9,7 +9,7 @@ def download_sample(filename):
         urllib.request.urlretrieve(url, filename)
     return filename
 
-# 사용할 샘플 이미지
+# 사용할 샘플 이미지 다운로드
 img = cv.imread(download_sample("pic1.png"), cv.IMREAD_GRAYSCALE)
 
 _, binary= cv.threshold(img, 127, 255,cv.THRESH_BINARY)
