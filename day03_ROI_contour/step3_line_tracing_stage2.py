@@ -61,11 +61,28 @@ while True:
             cv.putText(frame, f'Center: ({cX}, {cY})', (10, 30), cv.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             cv.putText(frame, f'Angle: {angle:.1f} deg', (10, 60), cv.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             cv.putText(frame, f'Steer: {steer:.2f}', (10, 90), cv.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            
+            # 프레임 중앙에 기준선 그리기
+            frame_center_x = frame.shape[1] // 2
+            cv.line(frame, (frame_center_x, 0), (frame_center_x, frame.shape[0]), (200, 200, 200), 2)
+
+            # Steer에 따라 화면에 회전 값 시각화
+            steer_bar_length = int(steer * 100)  # -100 ~ 100
+            if steer < 0:
+                cv.line(frame, (frame_center_x, frame.shape[0]//2),
+                        (frame_center_x + steer_bar_length, frame.shape[0]//2), (0, 0, 255), 3)  # 우회전 (빨강)
+            else:
+                cv.line(frame, (frame_center_x, frame.shape[0]//2),
+                        (frame_center_x + steer_bar_length, frame.shape[0]//2), (255, 0, 0), 3)  # 좌회전 (파강)
+    
 
    
     binary_color = cv.cvtColor(binary, cv.COLOR_GRAY2BGR)
     result = np.hstack((binary_color, frame))
     cv.imshow("Line Tracing stage 2", result)
+    
+    
+    
     
     if cv.waitKey(1) & 0xFF == ord('q'):
         break        
