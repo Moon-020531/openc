@@ -51,6 +51,7 @@ def onMouse(event, x, y, flags, param):
             # 원근 변환 적용
             result = cv2.warpPerspective(img, mtrx, (int(width), int(height)))
             cv2.imshow('scanned', result)
+            cv2.imwrite('scanned_document.png', result)
 
 
 
@@ -63,8 +64,30 @@ def get_sample(filename, repo='opencv'):
         urllib.request.urlretrieve(url, filename)
     return filename
 
+cap = cv2.VideoCapture(0)
+
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
+    
+    # 프레임 크기 조정 (보기 좋게)
+    frame = cv2.resize(frame, (800, 600))
+    img = frame.copy()
+    draw = frame.copy()
+    
+    cv2.imshow(win_name, draw)
+    cv2.setMouseCallback(win_name, onMouse)
+    
+    if cv2.waitKey(1) & 0xFF == ord('q'):  # 'q' 누르면 종료
+        break
+
+cap.release()
+cv2.destroyAllWindows()
+
+
 # 이미지 로드 (파일 또는 웹캠)
-img = cv2.imread(get_sample('paper.jpg', repo='insightbook'))
+img = cv2.imread(0)  
 
 if img is None:
     print("❌ 이미지를 불러올 수 없습니다.")
