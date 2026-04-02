@@ -3,13 +3,14 @@ import numpy as np
 import os
 import urllib.request
 
-
 win_name = "Document Scanning"
 img = None
 draw = None
 rows, cols = 0, 0
 pts_cnt = 0
 pts = np.zeros((4, 2), dtype=np.float32)
+
+
 
 
 def onMouse(event, x, y, flags, param):
@@ -71,8 +72,6 @@ if img is None:
 
 rows, cols = img.shape[:2]
 draw = img.copy()
-
-
 
 print("📝 사용법:")
 print("1. 이미지 위에 4개 점을 클릭하세요 (좌상단, 우상단, 우하단, 좌하단 순서 무관)")
