@@ -39,6 +39,7 @@ upper_hsv = np.array([
 previous_state = None
 last_status = None
 last_count = -1
+prev_time = time.time()
 
 while True:
     # 프레임 읽기
@@ -97,6 +98,11 @@ while True:
         print(f"[STATUS] {status} | count={detected_count}")
         last_status = status
         last_count = detected_count
+
+    current_time = time.time()
+    fps = 1.0 / (current_time - prev_time) if current_time > prev_time else 0.0
+    prev_time = current_time
+    cv.putText(frame, f"FPS: {fps:.2f}", (10, 90), cv.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
 
     cv.imshow("Yellow", frame)
     cv.imshow("Mask", mask_cleaned)
