@@ -40,9 +40,12 @@ previous_state = None
 last_status = None
 last_count = -1
 prev_time = time.time()
+last_reaction_ms = 0.0
+reaction_history = []
 
 while True:
     # 프레임 읽기
+    frame_start_time = time.time()
     ret, frame = cap.read()
     if not ret:
         print("❌ 프레임을 읽을 수 없습니다")
@@ -87,7 +90,12 @@ while True:
     if previous_state is not None and current_state != previous_state:
         command = "O" if current_state else "C"
         if send_command(ser, command):
+            last_reaction_ms = (time.time() - frame_start_time) * 1000
+            reaction_history.append(last_reaction_ms)
+            if len(reaction_history) > 30:
+                reaction_history.pop(0)
             print(f"[ARDUINO] {command} 전송")
+            print(f"[RESPONSE] {last_reaction_ms:.1f} ms")
 
     previous_state = current_state
 
@@ -103,6 +111,11 @@ while True:
     fps = 1.0 / (current_time - prev_time) if current_time > prev_time else 0.0
     prev_time = current_time
     cv.putText(frame, f"FPS: {fps:.2f}", (10, 90), cv.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+    cv.putText(frame, f"Reaction: {last_reaction_ms:.1f} ms", (10, 120), cv.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+
+    if reaction_history:
+        avg_reaction_ms = sum(reaction_history) / len(reaction_history)
+        cv.putText(frame, f"Avg Reaction: {avg_reaction_ms:.1f} ms", (10, 150), cv.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
 
     cv.imshow("Yellow", frame)
     cv.imshow("Mask", mask_cleaned)
