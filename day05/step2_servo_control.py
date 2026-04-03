@@ -35,6 +35,10 @@ upper_hsv = np.array([
     255     # ← V 최대값 (0-255)
 ])
 
+# 검은색 HSV 범위 (동시 탐지)
+lower_black_hsv = np.array([0, 0, 0])
+upper_black_hsv = np.array([180, 255, 60])
+
 # 이전 상태 변수 초기화
 previous_state = None
 last_status = None
@@ -59,7 +63,9 @@ while True:
     roi = frame[roi_y1:roi_y2, roi_x1:roi_x2]
 
     hsv = cv.cvtColor(roi, cv.COLOR_BGR2HSV)
-    mask = cv.inRange(hsv, lower_hsv, upper_hsv)
+    white_mask = cv.inRange(hsv, lower_hsv, upper_hsv)
+    black_mask = cv.inRange(hsv, lower_black_hsv, upper_black_hsv)
+    mask = cv.bitwise_or(white_mask, black_mask)
     
     kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, (5, 5))
     mask_cleaned = cv.morphologyEx(mask, cv.MORPH_OPEN, kernel)
