@@ -10,9 +10,9 @@ from sample_download import get_sample
 
 # 공식 샘플 이미지 또는 자신의 이미지 사용
 
-img1 = cv.imread(get_sample('box.png', repo='opencv'), cv.IMREAD_GRAYSCALE)
+img1 = cv.imread('D:\projects\opencv_programming\image1.png', cv.IMREAD_GRAYSCALE)
 
-img2 = cv.imread(get_sample('box_in_scene.png', repo='opencv'), cv.IMREAD_GRAYSCALE)
+img2 = cv.imread('D:\projects\opencv_programming\image2.png', cv.IMREAD_GRAYSCALE)
 
 if img1 is None or img2 is None:
 
@@ -132,3 +132,123 @@ else:
     print("Not enough good matches!")
 
 
+# ========== Step 1: 호모그래피 계산 ==========
+
+MIN_MATCH_COUNT = 10
+
+if len(good_matches) >= MIN_MATCH_COUNT:
+
+    # TODO: 다음을 구현하세요
+
+    # 1) good_matches에서 queryIdx와 trainIdx로 키포인트 좌표 추출
+    good_matches = sorted(good_matches, key=lambda x: x.distance)
+
+    # 2) np.float32 배열로 변환 (reshape(-1, 1, 2) 형태)
+    src_pts = np.float32([kp1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+
+    # src_pts = np.float32([kp1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+    
+    dst_pts = np.float32([kp2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+
+    # dst_pts = np.float32([kp2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+
+    
+
+    # TODO: 호모그래피 행렬 계산 (RANSAC 사용)
+
+    # M, mask = cv.findHomography(src_pts, dst_pts, cv.RANSAC, 5.0)
+    M, mask = cv.findHomography(src_pts, dst_pts, cv.RANSAC, 5.0)
+
+    
+
+    if M is not None:
+
+        # TODO: img1의 네 모서리를 이미지 좌표 배열로 정의
+
+        # h, w = img1.shape
+        h, w = img1.shape
+
+        # pts = np.float32([[0, 0], [0, h-1], [w-1, h-1], [w-1, 0]]).reshape(-1, 1, 2)
+        pts = np.float32([[0, 0], [0, h-1], [w-1, h-1], [w-1, 0]]).reshape(-1, 1, 2)
+
+        
+
+        # TODO: perspectiveTransform으로 변환된 좌표 계산
+
+        # dst = cv.perspectiveTransform(pts, M)
+        dst= cv.perspectiveTransform(pts, M)
+
+        
+
+        # ========== Step 2: 결과 시각화 ==========
+
+        # TODO: 다음을 구현하세요
+
+        # 1) img2를 카피
+        img2_copy = img2.copy()
+
+        # 2) cv.polylines()로 변환된 사각형 그리기 (파란색, 두께 3)
+        cv.polylines(img2_copy, [np.int32(dst)], isClosed=True, color=(255, 0, 0), thickness=3)
+
+        # 3) matplotlib으로 표시
+        plt.figure(figsize=(10, 8))
+        plt.imshow(img2_copy, cmap='gray')
+        plt.title('Detected Object with Homography')
+        plt.axis('off')
+        plt.tight_layout()
+        plt.show()
+
+        result_img = img2.copy()
+
+        # TODO: polylines 코드 작성
+        cv.polylines(result_img, [np.int32(dst)], isClosed=True, color=(255, 0, 0), thickness=3)
+        
+
+        plt.figure(figsize=(10, 8))
+
+        plt.imshow(cv.cvtColor(result_img, cv.COLOR_BGR2RGB))
+
+        plt.title('Detected Object with Homography')
+
+        plt.axis('off')
+
+        plt.tight_layout()
+
+        plt.show()
+
+        
+
+        # ========== Step 3: 매칭 시각화 (inlier만) ==========
+
+        matchesMask = mask.ravel().tolist()
+
+        draw_params = dict(
+
+            matchColor=(0, 255, 0),
+
+            singlePointColor=None,
+
+            matchesMask=matchesMask,
+
+            flags=cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS
+
+        )
+
+        
+
+        # TODO: drawMatches로 inlier만 표시
+    
+        inlier_count = sum(matchesMask)
+
+        outlier_count = len(matchesMask) - inlier_count
+
+        print(f"Inliers: {inlier_count}, Outliers: {outlier_count}")
+        
+
+    else:
+
+        print("Failed to compute homography")
+
+else:
+
+    print(f"Not enough matches ({len(good_matches)}/{MIN_MATCH_COUNT})")
