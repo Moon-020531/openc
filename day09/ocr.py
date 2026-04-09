@@ -3,14 +3,28 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pytesseract
 from pathlib import Path
+import shutil
 #plt.style.use('dark_background')
+
+tesseract_cmd = shutil.which('tesseract')
+if tesseract_cmd is None:
+    default_tesseract = Path(r'C:/Program Files/Tesseract-OCR/tesseract.exe')
+    if default_tesseract.exists():
+        tesseract_cmd = str(default_tesseract)
+
+if tesseract_cmd is None:
+    raise RuntimeError('Tesseract OCR 실행 파일을 찾을 수 없습니다. 설치 후 PATH에 추가하거나 경로를 지정하세요.')
+
+pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+tessdata_dir = Path(tesseract_cmd).resolve().parent / 'tessdata'
+ocr_lang = 'kor' if (tessdata_dir / 'kor.traineddata').exists() else 'eng'
 
 base_dir = Path(__file__).resolve().parent
 image_path = base_dir / '01가0785.jpg'
 img_data = np.fromfile(str(image_path), dtype=np.uint8)
 img_ori = cv2.imdecode(img_data, cv2.IMREAD_COLOR)
 if img_ori is None:
-	raise FileNotFoundError(f'이미지를 읽을 수 없습니다: {image_path}')
+    raise FileNotFoundError(f'이미지를 읽을 수 없습니다: {image_path}')
 
 height, width, channel = img_ori.shape
 
@@ -183,7 +197,118 @@ for r in matched_result:
 #         cv2.drawContours(temp_result, d['contour'], -1, (255, 255, 255))
         cv2.rectangle(temp_result, pt1=(d['x'], d['y']), pt2=(d['x']+d['w'], d['y']+d['h']), color=(255, 255, 255), thickness=2)
 
-plt.figure(figsize=(12, 10))
-plt.imshow(temp_result, cmap='gray')
+#plt.figure(figsize=(12, 10))
+#plt.imshow(temp_result, cmap='gray')
+
+PLATE_WIDTH_PADDING = 1.3 # 1.3
+PLATE_HEIGHT_PADDING = 1.5 # 1.5
+MIN_PLATE_RATIO = 3
+MAX_PLATE_RATIO = 10
+
+plate_imgs = []
+plate_infos = []
+
+for i, matched_chars in enumerate(matched_result):
+    sorted_chars = sorted(matched_chars, key=lambda x: x['cx'])
+
+    plate_cx = (sorted_chars[0]['cx'] + sorted_chars[-1]['cx']) / 2
+    plate_cy = (sorted_chars[0]['cy'] + sorted_chars[-1]['cy']) / 2
+    
+    plate_width = (sorted_chars[-1]['x'] + sorted_chars[-1]['w'] - sorted_chars[0]['x']) * PLATE_WIDTH_PADDING
+    
+    sum_height = 0
+    for d in sorted_chars:
+        sum_height += d['h']
+
+    plate_height = int(sum_height / len(sorted_chars) * PLATE_HEIGHT_PADDING)
+    
+    img_cropped = cv2.getRectSubPix(
+        img_thresh,
+        patchSize=(int(plate_width), int(plate_height)), 
+        center=(int(plate_cx), int(plate_cy))
+    )
+    
+    plate_ratio = img_cropped.shape[1] / img_cropped.shape[0]
+    if plate_ratio < MIN_PLATE_RATIO or plate_ratio > MAX_PLATE_RATIO:
+        continue
+    
+    plate_imgs.append(img_cropped)
+    plate_infos.append({
+        'x': int(plate_cx - plate_width / 2),
+        'y': int(plate_cy - plate_height / 2),
+        'w': int(plate_width),
+        'h': int(plate_height)
+    })
+    
+    #plt.subplot(len(matched_result), 1, i+1)
+    #plt.imshow(img_cropped, cmap='gray')
+
+longest_idx, longest_text = -1, 0
+plate_chars = []
+
+for i, plate_img in enumerate(plate_imgs):
+    plate_img = cv2.resize(plate_img, dsize=(0, 0), fx=1.6, fy=1.6)
+    _, plate_img = cv2.threshold(plate_img, thresh=0.0, maxval=255.0, type=cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+    
+    # find contours again (same as above)
+    contours, _ = cv2.findContours(plate_img, mode=cv2.RETR_LIST, method=cv2.CHAIN_APPROX_SIMPLE)
+    
+    plate_min_x, plate_min_y = plate_img.shape[1], plate_img.shape[0]
+    plate_max_x, plate_max_y = 0, 0
+
+    for contour in contours:
+        x, y, w, h = cv2.boundingRect(contour)
+        
+        area = w * h
+        ratio = w / h
+
+        if area > MIN_AREA \
+        and w > MIN_WIDTH and h > MIN_HEIGHT \
+        and MIN_RATIO < ratio < MAX_RATIO:
+            if x < plate_min_x:
+                plate_min_x = x
+            if y < plate_min_y:
+                plate_min_y = y
+            if x + w > plate_max_x:
+                plate_max_x = x + w
+            if y + h > plate_max_y:
+                plate_max_y = y + h
+                
+    img_result = plate_img[plate_min_y:plate_max_y, plate_min_x:plate_max_x]
+    #cv2.imwrite(f'step_ocr_1_cropped_{i}.png', img_result)
+
+    img_result = cv2.GaussianBlur(img_result, ksize=(3, 3), sigmaX=0)
+    #cv2.imwrite(f'step_ocr_2_blurred_{i}.png', img_result)
+
+    _, img_result = cv2.threshold(img_result, thresh=0.0, maxval=255.0, type=cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+    #cv2.imwrite(f'step_ocr_3_threshed_{i}.png', img_result)
+
+    img_result = cv2.copyMakeBorder(img_result, top=10, bottom=10, left=10, right=10, borderType=cv2.BORDER_CONSTANT, value=(0,0,0))
+    #cv2.imwrite(f'step_ocr_4_bordered_{i}.png', img_result)
+
+    # 이미지 반전 (흰 배경 + 검은 글자로)
+    img_result_inverted = cv2.bitwise_not(img_result)
+    cv2.imwrite(f'step_ocr_5_inverted_{i}.png', img_result_inverted)
+
+    # OCR (반전된 이미지 사용)
+    chars = pytesseract.image_to_string(img_result_inverted, lang=ocr_lang, config='--psm 7 --oem 1')
+    print(f"[결과] {chars.strip()}")
+    result_chars = ''
+    has_digit = False
+    for c in chars:
+        if ord('가') <= ord(c) <= ord('힣') or c.isdigit():
+            if c.isdigit():
+                has_digit = True
+            result_chars += c
+
+    print(result_chars)
+    plate_chars.append(result_chars)
+
+    if has_digit and len(result_chars) > longest_text:
+        longest_idx = i
+
+    plt.subplot(len(plate_imgs), 1, i+1)
+    plt.imshow(img_result, cmap='gray')
+    plt.title(f'Plate {i+1}')
 
 plt.show()
